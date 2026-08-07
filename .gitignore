@@ -1,0 +1,28 @@
+# ==========================================
+# Operating System Files
+# ==========================================
+# macOS 系統快取與縮圖
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon_
+._*
+
+# Windows 系統快取
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==========================================
+# IDE / Editor Files
+# ==========================================
+# VS Code 配置與快取
+.vscode/
+.history/
+*.code-workspace
+
+# JetBrains / PyCharm
+.idea/
+
+# 封鎖所有放在 data 資料夾底下的巨型數據，只留本地快取，絕對不推上雲端
+data/
