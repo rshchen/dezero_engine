@@ -5,9 +5,26 @@ import numpy as np
 
 
 class Variable:
-    def __init__(self, data: np.ndarray):
-        self.data = data
-        self.grad: Optional[np.ndarray] = None  # 必須宣告，避免被判定為純 NoneType
+  def __init__(self, data: np.ndarray):
+    self.data = data
+    self.grad: Optional[np.ndarray] = None  # 必須宣告，避免被判定為純 NoneType
+    self.creator: Optional['Function'] = None # Function 還沒有定義 所以要用字串表示
+
+  def set_creator(self, func: 'Function'):
+    self.creator = func
+
+  def backward(self):
+    if self.grad is None:
+      self.grad = np.ones_like(self.data)
+
+    f = self.creator
+    if f is not None:
+      x = f.input
+      # 1. 呼叫算子的 backward 計算輸入變數梯度
+      x.grad = f.backward(self.grad)
+      # 2. 對輸入變數觸發遞迴求導
+      x.backward()
+        
 
 class Function:
 
@@ -15,6 +32,8 @@ class Function:
     x = input.data
     y = self.forward(x)
     output = Variable(y)
+    # 建立血緣關係：將輸出變數的 creator 指向自身
+    output.set_creator(self)
     self.input = input  # 保存輸入變數，供 backward 計算使用
     return output
 
