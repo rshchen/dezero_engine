@@ -17,13 +17,21 @@ class Variable:
     if self.grad is None:
       self.grad = np.ones_like(self.data)
 
-    f = self.creator
-    if f is not None:
-      x = f.input
-      # 1. 呼叫算子的 backward 計算輸入變數梯度
-      x.grad = f.backward(self.grad)
-      # 2. 對輸入變數觸發遞迴求導
-      x.backward()
+    funcs = []
+    if self.creator is not None:
+      funcs.append(self.creator)
+
+    while funcs:
+      # 1. 從堆疊中取出當前待處理的算子
+      f = funcs.pop()
+      # 2. 存取該算子的輸入與輸出變數
+      x, y = f.input, f.output
+      # 3. 呼叫算子的 backward 計算輸入變數梯度
+      x.grad = f.backward(y.grad)
+
+      # 4. 若輸入變數含有 creator，將其壓入堆疊繼續向上追蹤
+      if x.creator is not None:
+        funcs.append(x.creator)
         
 
 class Function:
@@ -35,6 +43,7 @@ class Function:
     # 建立血緣關係：將輸出變數的 creator 指向自身
     output.set_creator(self)
     self.input = input  # 保存輸入變數，供 backward 計算使用
+    self.output = output
     return output
 
   def forward(self, x: np.ndarray) -> np.ndarray:
