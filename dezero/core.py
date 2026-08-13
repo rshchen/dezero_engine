@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 
 # 純量轉型工具函式
@@ -16,8 +14,8 @@ class Variable:
           raise TypeError(f'{type(data)} is not supported')
 
     self.data = data
-    self.grad: Optional[np.ndarray] = None  # 必須宣告，避免被判定為純 NoneType
-    self.creator: Optional['Function'] = None # Function 還沒有定義 所以要用字串表示
+    self.grad: np.ndarray | None = None  # 必須宣告，避免被判定為純 NoneType
+    self.creator: 'Function' | None = None # Function 還沒有定義 所以要用字串表示
 
   def set_creator(self, func: 'Function'):
     self.creator = func

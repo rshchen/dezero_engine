@@ -1,5 +1,4 @@
 import numpy as np
-from typing import Optional
 from dezero.core import Exp, Square, Variable
 from dezero.utils import numerical_diff
 
