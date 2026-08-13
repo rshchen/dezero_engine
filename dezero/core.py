@@ -43,18 +43,22 @@ class Variable:
 
 class Function:
 
-  def __call__(self, input: Variable) -> Variable:
-    x = input.data
-    y = self.forward(x)
-    # 確保前向計算結果轉換為 np.ndarray 後才封裝為 Variable
-    output = Variable(as_array(y))
+  def __call__(self, *inputs: Variable) -> Variable | tuple[Variable, ...]:
+    xs = [x.data for x in inputs]
+    ys = self.forward(*xs)
+    # 確保 ys 為 tuple 結構
+    if not isinstance(ys, tuple):
+      ys = (ys,)
+    # 封裝 Variable 陣列
+    self.outputs = [Variable(as_array(y)) for y in ys]
     # 建立血緣關係：將輸出變數的 creator 指向自身
-    output.set_creator(self)
-    self.input = input  # 保存輸入變數，供 backward 計算使用
-    self.output = output
-    return output
+    for output in self.outputs:
+      output.set_creator(self)
+    self.inputs = inputs  # 保存輸入變數，供 backward 計算使用
+    
+    return self.outputs[0] if len(self.outputs)==1 else tuple(self.outputs)
 
-  def forward(self, x: np.ndarray) -> np.ndarray:
+  def forward(self, *xs: np.ndarray) -> np.ndarray | tuple[np.ndarray, ...]:
     raise NotImplementedError()
 
   def backward(self, gy: np.ndarray) -> np.ndarray:
@@ -89,3 +93,13 @@ def square(x: Variable) -> Variable:
 
 def exp(x: Variable) -> Variable:
     return Exp()(x)
+
+
+class Add(Function):
+
+  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    return x0 + x1
+
+
+def add(x0: Variable, x1: Variable) -> Variable:
+  return Add()(x0, x1)
