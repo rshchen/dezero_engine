@@ -20,6 +20,11 @@ class Variable:
   def set_creator(self, func: 'Function'):
     self.creator = func
 
+  def cleargrad(self):
+    # 重置梯度為 None
+    self.grad = None
+
+
   def backward(self):
     if self.grad is None:
       self.grad = np.ones_like(self.data)
@@ -31,15 +36,29 @@ class Variable:
     while funcs:
       # 從堆疊中取出當前待處理的算子
       f = funcs.pop()
-      # 存取該算子的輸入與輸出變數
-      x, y = f.input, f.output
-      # 呼叫算子的 backward 計算輸入變數梯度
-      x.grad = f.backward(y.grad)
+      # # 存取該算子的輸入與輸出變數
+      # x, y = f.input, f.output
+      # # 呼叫算子的 backward 計算輸入變數梯度
+      # x.grad = f.backward(y.grad)
+      # 收集所有輸出變數的梯度
+      gys = [output.grad for output in f.outputs]
+      # 將 gys 解包傳入算子的 backward 運算
+      gxs = f.backward(*gys)
+      # 確保 gxs 為 tuple 結構
+      if not isinstance(gxs, tuple):
+        gxs = (gxs, )
 
-      # 若輸入變數含有 creator，將其壓入堆疊繼續向上追蹤
-      if x.creator is not None:
-        funcs.append(x.creator)
-        
+      # 梯度累加與圖繪製追蹤
+      for x, gx in zip(f.inputs, gxs):
+        if x.grad is None:
+          x.grad = gx
+        else:
+          # 必須使用 x.grad + gx，避免 in-place 修改引發記憶體參照污染
+          x.grad = x.grad + gx  # 使用加法進行梯度累加
+        # 若輸入變數含有 creator，將其壓入堆疊繼續向上追蹤
+        if x.creator is not None:
+          funcs.append(x.creator)
+
 
 class Function:
 
@@ -61,7 +80,7 @@ class Function:
   def forward(self, *xs: np.ndarray) -> np.ndarray | tuple[np.ndarray, ...]:
     raise NotImplementedError()
 
-  def backward(self, gy: np.ndarray) -> np.ndarray:
+  def backward(self, *gy: np.ndarray) -> np.ndarray | tuple[np.ndarray, ...]:
     raise NotImplementedError()
 
 class Square(Function):
@@ -99,6 +118,8 @@ class Add(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     return x0 + x1
+  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    return gy, gy
 
 
 def add(x0: Variable, x1: Variable) -> Variable:
