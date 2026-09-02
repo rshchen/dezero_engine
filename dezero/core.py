@@ -29,16 +29,45 @@ def no_grad():
   return using_config("enable_backprop", False)
 
 class Variable:
-  def __init__(self, data: np.ndarray):
+  def __init__(self, data: np.ndarray, name: str | None = None):
     if data is not None:
       # 嚴格檢查傳入資料型別是否為 np.ndarray
       if not isinstance(data, np.ndarray):
           raise TypeError(f'{type(data)} is not supported')
 
     self.data = data
+    self.name = name
     self.grad: np.ndarray | None = None  # 必須宣告，避免被判定為純 NoneType
     self.creator: Function | None = None 
     self.generation: int = 0
+
+  # 使用屬性取值器代理 ndarray 屬性
+  @property
+  def shape(self) -> tuple[int, ...]:
+    return self.data.shape
+
+  @property
+  def ndim(self) -> int:
+    return self.data.ndim
+
+  @property
+  def size(self) -> int:
+    return self.data.size
+
+  @property
+  def dtype(self) -> np.dtype:
+    return self.data.dtype
+
+  # 實作長度協定魔術方法，對接全域 len()
+  def __len__(self) -> int:
+    return len(self.data)
+
+  # 實作字串顯示魔術方法
+  def __repr__(self) -> str:
+    if self.data is None:
+      return "variable(None)"
+    p = str(self.data).replace("\n", "\n" + " " * 9)
+    return f"variable({p})"
 
   def set_creator(self, func: Function):
     self.creator = func
