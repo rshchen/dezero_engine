@@ -1,12 +1,32 @@
 from __future__ import annotations
 import numpy as np
 import weakref
+import contextlib
 
 # 純量轉型工具函式
 def as_array(x):
     if np.isscalar(x):
         return np.array(x)
     return x
+
+# 定義全域組態開關類別
+class Config:
+  enable_backprop: bool = True
+
+
+# 實作基於 contextmanager 的通用組態切換器
+@contextlib.contextmanager
+def using_config(name: str, value: bool):
+  old_value = getattr(Config, name)
+  setattr(Config, name, value)
+  try:
+    yield
+  finally:
+    setattr(Config, name, old_value)
+
+
+def no_grad():
+  return using_config("enable_backprop", False)
 
 class Variable:
   def __init__(self, data: np.ndarray):
@@ -20,7 +40,7 @@ class Variable:
     self.creator: Function | None = None 
     self.generation: int = 0
 
-  def set_creator(self, func: 'Function'):
+  def set_creator(self, func: Function):
     self.creator = func
     self.generation = func.generation + 1 # 輸出變數的世代為算子世代加 1
   def cleargrad(self):
@@ -28,7 +48,7 @@ class Variable:
     self.grad = None
 
 
-  def backward(self):
+  def backward(self, retain_grad: bool = False):
     if self.grad is None:
       self.grad = np.ones_like(self.data)
 
@@ -68,6 +88,12 @@ class Variable:
         if x.creator is not None:
           add_func(x.creator)
 
+      # 中間梯度即時釋放：若不保留中間梯度，走訪完算子後立即將其 outputs 的 grad 歸零
+      if not retain_grad:
+        for y in f.outputs:
+          y().grad = None
+
+
 
 class Function:
 
@@ -78,15 +104,18 @@ class Function:
     if not isinstance(ys, tuple):
       ys = (ys,)
 
-    # 算子世代等於輸入變數中世代最大值
-    self.generation = max([x.generation for x in inputs])
+
     # 封裝 Variable 陣列
     outputs = [Variable(as_array(y)) for y in ys]
-    # 建立血緣關係：將輸出變數的 creator 指向自身
-    for output in outputs:
-      output.set_creator(self)
-    self.inputs = inputs  # 保存輸入變數，供 backward 計算使用
-    self.outputs = [weakref.ref(output) for output in outputs] # 將輸出變數包裝為 weakref 弱引用，避免循環參照
+    # 僅在啟用反向傳播模式時，才建構計算圖血緣
+    if Config.enable_backprop:
+      # 算子世代等於輸入變數中世代最大值
+      self.generation = max([x.generation for x in inputs])
+      # 建立血緣關係：將輸出變數的 creator 指向自身
+      for output in outputs:
+        output.set_creator(self)
+      self.inputs = inputs  # 保存輸入變數，供 backward 計算使用
+      self.outputs = [weakref.ref(output) for output in outputs] # 將輸出變數包裝為 weakref 弱引用，避免循環參照
 
     
     return outputs[0] if len(outputs)==1 else tuple(outputs)
