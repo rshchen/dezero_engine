@@ -288,13 +288,14 @@ def pow(x: Variable, c: int | float) -> Variable:
   return Pow(c)(x)
 
 # 動態掛載魔術方法
-Variable.__add__ = add
-Variable.__radd__ = add  # 加法滿足交換律之右側運算子
-Variable.__mul__ = mul
-Variable.__rmul__ = mul
-Variable.__neg__ = neg  # 一元負號魔術方法
-Variable.__sub__ = sub
-Variable.__rsub__ = rsub
-Variable.__truediv__ = div
-Variable.__rtruediv__ = rdiv
-Variable.__pow__ = pow
+def setup_variable():
+  Variable.__add__ = add
+  Variable.__radd__ = add  # 加法滿足交換律之右側運算子
+  Variable.__mul__ = mul
+  Variable.__rmul__ = mul
+  Variable.__neg__ = neg  # 一元負號魔術方法
+  Variable.__sub__ = sub
+  Variable.__rsub__ = rsub
+  Variable.__truediv__ = div
+  Variable.__rtruediv__ = rdiv
+  Variable.__pow__ = pow
