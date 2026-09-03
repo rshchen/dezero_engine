@@ -3,16 +3,21 @@ import numpy as np
 import weakref
 import contextlib
 
+# 定義全域組態開關類別
+class Config:
+  enable_backprop: bool = True
+
 # 純量轉型工具函式
 def as_array(x):
     if np.isscalar(x):
         return np.array(x)
     return x
 
-# 定義全域組態開關類別
-class Config:
-  enable_backprop: bool = True
-
+# 轉型成變數的工具函式
+def as_variable(obj: Variable | np.ndarray | float | int) -> Variable:
+  if isinstance(obj, Variable):
+    return obj
+  return Variable(as_array(obj))
 
 # 實作基於 contextmanager 的通用組態切換器
 @contextlib.contextmanager
@@ -165,7 +170,6 @@ class Square(Function):
     gx = 2 * x * gy  # dL/dx = 2x * dL/dy
     return gx
 
-
 class Exp(Function):
 
   def forward(self, x: np.ndarray) -> np.ndarray:
@@ -175,24 +179,122 @@ class Exp(Function):
     x = self.inputs[0].data
     gx = np.exp(x) * gy # dL/dx = exp(x) * dL/dy
     return gx
-  
-
-# 算子快捷函式封裝
-def square(x: Variable) -> Variable:
-    return Square()(x)
-
-
-def exp(x: Variable) -> Variable:
-    return Exp()(x)
-
 
 class Add(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     return x0 + x1
+
   def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return gy, gy
 
 
-def add(x0: Variable, x1: Variable) -> Variable:
+class Mul(Function):
+
+  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    return x0 * x1
+
+  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    x0, x1 = self.inputs[0].data, self.inputs[1].data
+    return gy * x1, gy * x0
+
+class Neg(Function):
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    return -x
+
+  def backward(self, gy: np.ndarray) -> np.ndarray:
+    return -gy
+
+
+class Sub(Function):
+
+  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    return x0 - x1
+
+  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    return gy, -gy
+
+
+class Div(Function):
+
+  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    return x0 / x1
+
+  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    x0, x1 = self.inputs[0].data, self.inputs[1].data
+    gx0 = gy / x1
+    gx1 = gy * (-x0 / (x1**2))
+    return gx0, gx1
+
+
+class Pow(Function):
+
+  def __init__(self, c: int | float):
+    self.c = c
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    return x**self.c
+
+  def backward(self, gy: np.ndarray) -> np.ndarray:
+    x = self.inputs[0].data
+    c = self.c
+    return c * (x ** (c - 1)) * gy
+
+
+
+# 封裝算子輔助函式
+def square(x: Variable) -> Variable:
+    return Square()(x)
+
+def exp(x: Variable) -> Variable:
+    return Exp()(x)
+
+def add(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
   return Add()(x0, x1)
+
+
+def mul(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Mul()(x0, x1)
+
+
+def neg(x: Variable) -> Variable:
+  return Neg()(x)
+
+
+def sub(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Sub()(x0, x1)
+
+
+def rsub(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Sub()(x1, x0)
+
+
+def div(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Div()(x0, x1)
+
+
+def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Div()(x1, x0)
+
+
+def pow(x: Variable, c: int | float) -> Variable:
+  return Pow(c)(x)
+
+# 動態掛載魔術方法
+Variable.__add__ = add
+Variable.__radd__ = add  # 加法滿足交換律之右側運算子
+Variable.__mul__ = mul
+Variable.__rmul__ = mul
+Variable.__neg__ = neg  # 一元負號魔術方法
+Variable.__sub__ = sub
+Variable.__rsub__ = rsub
+Variable.__truediv__ = div
+Variable.__rtruediv__ = rdiv
+Variable.__pow__ = pow
