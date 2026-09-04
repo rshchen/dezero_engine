@@ -13,7 +13,7 @@ from dezero.core import (
 
 # 執行運算子掛載初始化
 setup_variable()
-
+# 輸出白名單
 __all__ = [
     "Variable",
     "Function",

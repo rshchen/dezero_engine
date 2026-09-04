@@ -16,6 +16,9 @@ def gradient_check(
     rtol: float = 1e-7,
     atol: float = 1e-5,
 ) -> None:
+
+  # 進入前清空殘留梯度，避免閉包變數殘留值被累加
+  x.cleargrad()
   # 1. 執行前向傳播與反向傳播
   y = f(x)
   y.backward()
