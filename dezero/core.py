@@ -241,6 +241,16 @@ class Pow(Function):
     c = self.c
     return c * (x ** (c - 1)) * gy
 
+class Sin(Function):
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    return np.sin(x)
+
+  def backward(self, gy: np.ndarray) -> np.ndarray:
+    x = self.inputs[0].data
+    # dy/dx = cos(x)
+    gx = gy * np.cos(x)
+    return gx
 
 
 # 封裝算子輔助函式
@@ -286,6 +296,9 @@ def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
 
 def pow(x: Variable, c: int | float) -> Variable:
   return Pow(c)(x)
+
+def sin(x: Variable | np.ndarray) -> Variable:
+  return Sin()(x)
 
 # 動態掛載魔術方法
 def setup_variable():

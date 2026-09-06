@@ -9,6 +9,7 @@ from dezero.core import (
     setup_variable,
     square,
     using_config,
+    sin,
 )
 
 # 執行運算子掛載初始化
@@ -24,5 +25,6 @@ __all__ = [
     "as_variable",
     "square",
     "exp",
+    "sin",
 ]
 

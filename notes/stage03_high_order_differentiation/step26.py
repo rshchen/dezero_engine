@@ -1,6 +1,5 @@
 # 檔案：notes/stage03_high_order_differentiation/step26.py
 from pathlib import Path
-import subprocess
 import numpy as np
 import pytest
 from dezero import Variable
@@ -75,8 +74,5 @@ def test_manual_visual_inspection_workflow():
 
   assert output_file.is_file()
   assert output_file.stat().st_size > 0
-
-  # 自動調用 macOS 系統預覽程式開啟圖檔供開發者肉眼檢查
-  # 終端機等價指令：open sphere_manual_check.png
-  subprocess.run(f"open {output_file}", shell=True, check=True)
+  # 手動檢視時，直接在終端機輸入：open sphere_manual_check.png
 
