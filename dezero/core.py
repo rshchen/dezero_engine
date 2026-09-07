@@ -42,7 +42,7 @@ class Variable:
 
     self.data = data
     self.name = name
-    self.grad: np.ndarray | None = None  # 必須宣告，避免被判定為純 NoneType
+    self.grad: Variable | None = None  # 必須宣告，避免被判定為純 NoneType
     self.creator: Function | None = None 
     self.generation: int = 0
 
@@ -82,9 +82,9 @@ class Variable:
     self.grad = None
 
 
-  def backward(self, retain_grad: bool = False):
+  def backward(self, retain_grad: bool = False, create_graph: bool = False):
     if self.grad is None:
-      self.grad = np.ones_like(self.data)
+      self.grad = Variable(np.ones_like(self.data))
 
     funcs: list[Function] = []
     seen_set: set[Function] = set()
@@ -105,22 +105,24 @@ class Variable:
       f = funcs.pop()
       # 收集所有輸出變數的梯度
       gys = [output().grad for output in f.outputs]
-      # 將 gys 解包傳入算子的 backward 運算
-      gxs = f.backward(*gys)
-      # 確保 gxs 為 tuple 結構
-      if not isinstance(gxs, tuple):
-        gxs = (gxs, )
+      # 根據 create_graph 決定是否在反向傳播時保留導函數計算圖
+      with using_config("enable_backprop", create_graph):
+        # 將 gys 解包傳入算子的 backward 運算
+        gxs = f.backward(*gys)
+        # 確保 gxs 為 tuple 結構
+        if not isinstance(gxs, tuple):
+          gxs = (gxs, )
 
-      # 梯度累加與圖繪製追蹤
-      for x, gx in zip(f.inputs, gxs):
-        if x.grad is None:
-          x.grad = gx
-        else:
-          # 必須使用 x.grad + gx，避免 in-place 修改引發記憶體參照污染
-          x.grad = x.grad + gx  # 使用加法進行梯度累加
-        # 若輸入變數含有 creator，將其壓入堆疊繼續向上追蹤
-        if x.creator is not None:
-          add_func(x.creator)
+        # 梯度累加
+        for x, gx in zip(f.inputs, gxs):
+          if x.grad is None:
+            x.grad = gx
+          else:
+            # 必須使用 x.grad + gx，避免 in-place 修改引發記憶體參照污染
+            x.grad = x.grad + gx  # 透過 Variable 重載的加法建立圖節點
+          # 若輸入變數含有 creator，將其壓入堆疊繼續向上追蹤
+          if x.creator is not None:
+            add_func(x.creator)
 
       # 中間梯度即時釋放：若不保留中間梯度，走訪完算子後立即將其 outputs 的 grad 歸零
       if not retain_grad:
@@ -166,7 +168,7 @@ class Square(Function):
     return x**2
 
   def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0].data
+    x = self.inputs[0]
     gx = 2 * x * gy  # dL/dx = 2x * dL/dy
     return gx
 
@@ -176,8 +178,8 @@ class Exp(Function):
     return np.exp(x)
 
   def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0].data
-    gx = np.exp(x) * gy # dL/dx = exp(x) * dL/dy
+    x = self.inputs[0]
+    gx = exp(x) * gy # dL/dx = exp(x) * dL/dy
     return gx
 
 class Add(Function):
@@ -195,7 +197,7 @@ class Mul(Function):
     return x0 * x1
 
   def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    x0, x1 = self.inputs[0].data, self.inputs[1].data
+    x0, x1 = self.inputs
     return gy * x1, gy * x0
 
 class Neg(Function):
@@ -222,7 +224,7 @@ class Div(Function):
     return x0 / x1
 
   def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    x0, x1 = self.inputs[0].data, self.inputs[1].data
+    x0, x1 = self.inputs
     gx0 = gy / x1
     gx1 = gy * (-x0 / (x1**2))
     return gx0, gx1
@@ -237,7 +239,7 @@ class Pow(Function):
     return x**self.c
 
   def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0].data
+    x = self.inputs[0]
     c = self.c
     return c * (x ** (c - 1)) * gy
 
@@ -247,11 +249,20 @@ class Sin(Function):
     return np.sin(x)
 
   def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0].data
+    x = self.inputs[0]
     # dy/dx = cos(x)
-    gx = gy * np.cos(x)
+    gx = gy * cos(x)
     return gx
 
+class Cos(Function):
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    return np.cos(x)
+
+  def backward(self, gy: Variable) -> Variable:
+    x = self.inputs[0]
+    gx = gy * -sin(x)  # 依賴 DeZero 的 sin 算子與負號運算子
+    return gx
 
 # 封裝算子輔助函式
 def square(x: Variable) -> Variable:
@@ -299,6 +310,9 @@ def pow(x: Variable, c: int | float) -> Variable:
 
 def sin(x: Variable | np.ndarray) -> Variable:
   return Sin()(x)
+
+def cos(x: Variable | np.ndarray) -> Variable:
+  return Cos()(x)
 
 # 動態掛載魔術方法
 def setup_variable():
