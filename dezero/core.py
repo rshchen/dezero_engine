@@ -162,25 +162,7 @@ class Function:
   def backward(self, *gys: np.ndarray) -> np.ndarray | tuple[np.ndarray, ...]:
     raise NotImplementedError()
 
-class Square(Function):
 
-  def forward(self, x: np.ndarray) -> np.ndarray:
-    return x**2
-
-  def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0]
-    gx = 2 * x * gy  # dL/dx = 2x * dL/dy
-    return gx
-
-class Exp(Function):
-
-  def forward(self, x: np.ndarray) -> np.ndarray:
-    return np.exp(x)
-
-  def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0]
-    gx = exp(x) * gy # dL/dx = exp(x) * dL/dy
-    return gx
 
 class Add(Function):
 
@@ -243,34 +225,8 @@ class Pow(Function):
     c = self.c
     return c * (x ** (c - 1)) * gy
 
-class Sin(Function):
-
-  def forward(self, x: np.ndarray) -> np.ndarray:
-    return np.sin(x)
-
-  def backward(self, gy: np.ndarray) -> np.ndarray:
-    x = self.inputs[0]
-    # dy/dx = cos(x)
-    gx = gy * cos(x)
-    return gx
-
-class Cos(Function):
-
-  def forward(self, x: np.ndarray) -> np.ndarray:
-    return np.cos(x)
-
-  def backward(self, gy: Variable) -> Variable:
-    x = self.inputs[0]
-    gx = gy * -sin(x)  # 依賴 DeZero 的 sin 算子與負號運算子
-    return gx
 
 # 封裝算子輔助函式
-def square(x: Variable) -> Variable:
-    return Square()(x)
-
-def exp(x: Variable) -> Variable:
-    return Exp()(x)
-
 def add(x0: Variable, x1: Variable | float | int) -> Variable:
   x1 = as_variable(x1)
   return Add()(x0, x1)
@@ -307,12 +263,6 @@ def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
 
 def pow(x: Variable, c: int | float) -> Variable:
   return Pow(c)(x)
-
-def sin(x: Variable | np.ndarray) -> Variable:
-  return Sin()(x)
-
-def cos(x: Variable | np.ndarray) -> Variable:
-  return Cos()(x)
 
 # 動態掛載魔術方法
 def setup_variable():

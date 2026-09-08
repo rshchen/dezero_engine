@@ -1,21 +1,21 @@
+# 檔案：dezero/__init__.py
 from dezero.core import (
     Config,
     Function,
     Variable,
     as_array,
     as_variable,
-    exp,
     no_grad,
     setup_variable,
-    square,
     using_config,
-    sin,
-    cos,
 )
 
-# 執行運算子掛載初始化
+# 優先執行運算子掛載，確保 Variable 具備重載方法
 setup_variable()
-# 輸出白名單
+
+# 核心就緒後，再匯入擴充算子庫
+from dezero.functions import cos, exp, sin, square, tanh
+
 __all__ = [
     "Variable",
     "Function",
@@ -28,5 +28,6 @@ __all__ = [
     "exp",
     "sin",
     "cos",
+    "tanh",
 ]
 
