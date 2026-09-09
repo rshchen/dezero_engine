@@ -1,7 +1,10 @@
 from __future__ import annotations
+from typing import Sequence
 import numpy as np
 import weakref
 import contextlib
+
+import dezero
 
 # 定義全域組態開關類別
 class Config:
@@ -63,6 +66,10 @@ class Variable:
   def dtype(self) -> np.dtype:
     return self.data.dtype
 
+  @property
+  def T(self) -> Variable:
+    return dezero.functions.transpose(self)
+
   # 實作長度協定魔術方法，對接全域 len()
   def __len__(self) -> int:
     return len(self.data)
@@ -81,6 +88,23 @@ class Variable:
     # 重置梯度為 None
     self.grad = None
 
+  def reshape(self, *shape: int | Sequence[int]) -> Variable:
+    if len(shape) == 1 and isinstance(shape[0], (list, tuple)):
+      target_shape = shape[0]
+    else:
+      target_shape = shape
+    return dezero.functions.reshape(self, target_shape)
+
+  def transpose(self, *axes: int | Sequence[int]) -> Variable:
+    if len(axes) == 0:
+      target_axes = None
+    elif len(axes) == 1 and isinstance(axes[0], (list, tuple)):
+      target_axes = axes[0]
+    elif len(axes) == 1 and axes[0] is None:
+      target_axes = None
+    else:
+      target_axes = axes
+    return dezero.functions.transpose(self, target_axes)
 
   def backward(self, retain_grad: bool = False, create_graph: bool = False):
     if self.grad is None:
