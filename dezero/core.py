@@ -256,22 +256,38 @@ class Neg(Function):
 class Sub(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    self.x0_shape = x0.shape
+    self.x1_shape = x1.shape
     return x0 - x1
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    return gy, -gy
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+    gx0 = gy
+    gx1 = -gy
+    if self.x0_shape != self.x1_shape:
+      import dezero.functions as F
 
+      gx0 = F.sum_to(gx0, self.x0_shape)
+      gx1 = F.sum_to(gx1, self.x1_shape)
+    return gx0, gx1
 
 class Div(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    self.x0_shape = x0.shape
+    self.x1_shape = x1.shape
     return x0 / x1
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
     x0, x1 = self.inputs
     gx0 = gy / x1
     gx1 = gy * (-x0 / (x1**2))
+    if self.x0_shape != self.x1_shape:
+      import dezero.functions as F
+
+      gx0 = F.sum_to(gx0, self.x0_shape)
+      gx1 = F.sum_to(gx1, self.x1_shape)
     return gx0, gx1
+
 
 
 class Pow(Function):
