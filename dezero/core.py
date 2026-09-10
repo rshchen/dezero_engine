@@ -1,26 +1,23 @@
+# 檔案：dezero/core.py
 from __future__ import annotations
-from typing import Sequence
-import numpy as np
-import weakref
+
 import contextlib
+from typing import Sequence
+import weakref
+import numpy as np
+from dezero.utils import as_array
 
-import dezero
-
-# 定義全域組態開關類別
-class Config:
-  enable_backprop: bool = True
-
-# 純量轉型工具函式
-def as_array(x):
-    if np.isscalar(x):
-        return np.array(x)
-    return x
 
 # 轉型成變數的工具函式
 def as_variable(obj: Variable | np.ndarray | float | int) -> Variable:
   if isinstance(obj, Variable):
     return obj
   return Variable(as_array(obj))
+
+# 定義全域組態開關類別
+class Config:
+  enable_backprop: bool = True
+
 
 # 實作基於 contextmanager 的通用組態切換器
 @contextlib.contextmanager
@@ -68,7 +65,8 @@ class Variable:
 
   @property
   def T(self) -> Variable:
-    return dezero.functions.transpose(self)
+    import dezero.functions as F
+    return F.transpose(self)
 
   # 實作長度協定魔術方法，對接全域 len()
   def __len__(self) -> int:
@@ -89,13 +87,15 @@ class Variable:
     self.grad = None
 
   def reshape(self, *shape: int | Sequence[int]) -> Variable:
+    import dezero.functions as F
     if len(shape) == 1 and isinstance(shape[0], (list, tuple)):
       target_shape = shape[0]
     else:
       target_shape = shape
-    return dezero.functions.reshape(self, target_shape)
+    return F.reshape(self, target_shape)
 
   def transpose(self, *axes: int | Sequence[int]) -> Variable:
+    import dezero.functions as F
     if len(axes) == 0:
       target_axes = None
     elif len(axes) == 1 and isinstance(axes[0], (list, tuple)):
@@ -104,7 +104,26 @@ class Variable:
       target_axes = None
     else:
       target_axes = axes
-    return dezero.functions.transpose(self, target_axes)
+    return F.transpose(self, target_axes)
+
+  def sum(
+      self,
+      axis: int | Sequence[int] | None = None,
+      keepdims: bool = False,
+  ) -> Variable:
+    import dezero.functions as F
+    return F.sum(self, axis=axis, keepdims=keepdims)
+
+  def broadcast_to(self, shape: Sequence[int] | int) -> Variable:
+    import dezero.functions as F
+
+    return F.broadcast_to(self, shape=shape)
+
+
+  def sum_to(self, shape: Sequence[int] | int) -> Variable:
+    import dezero.functions as F
+
+    return F.sum_to(self, shape=shape)
 
   def backward(self, retain_grad: bool = False, create_graph: bool = False):
     if self.grad is None:
@@ -191,20 +210,39 @@ class Function:
 class Add(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    return x0 + x1
+    self.x0_shape = x0.shape
+    self.x1_shape = x1.shape
+    y = x0 + x1
+    return y
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    return gy, gy
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+    gx0 = gy
+    gx1 = gy
+    if self.x0_shape != self.x1_shape:
+      import dezero.functions as F  # 延遲匯入以避免循環依賴
+
+      gx0 = F.sum_to(gx0, self.x0_shape)
+      gx1 = F.sum_to(gx1, self.x1_shape)
+    return gx0, gx1
 
 
 class Mul(Function):
 
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    return x0 * x1
+    y = x0 * x1
+    return y
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
     x0, x1 = self.inputs
-    return gy * x1, gy * x0
+    gx0 = gy * x1
+    gx1 = gy * x0
+    if x0.shape != x1.shape:
+      import dezero.functions as F  # 延遲匯入以避免循環依賴
+
+      gx0 = F.sum_to(gx0, x0.shape)
+      gx1 = F.sum_to(gx1, x1.shape)
+    return gx0, gx1
+
 
 class Neg(Function):
 

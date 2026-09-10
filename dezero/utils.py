@@ -1,10 +1,24 @@
-from typing import Callable, Set
-import numpy as np
-from dezero.core import Function, Variable, as_array
+# 檔案：dezero/utils.py
+from __future__ import annotations
+
 from pathlib import Path
 import subprocess
+from typing import TYPE_CHECKING, Callable, Sequence, Set
+import numpy as np
+
+if TYPE_CHECKING:
+  from dezero.core import Function, Variable
+
+
+# 純量轉型工具函式
+def as_array(x):
+    if np.isscalar(x):
+        return np.array(x)
+    return x
+
 
 def numerical_diff(f: Callable[[Variable], Variable], x: Variable, eps: float = 1e-4) -> np.ndarray:
+    from dezero.core import Variable  # 於呼叫時局部載入類別實體
     x0 = Variable(as_array(x.data - eps))
     x1 = Variable(as_array(x.data + eps))
     y0 = f(x0)
@@ -103,3 +117,43 @@ def plot_dot_graph(
   extension = to_path.suffix.lstrip(".")  # 取得副檔名屬性，例如 '.png' -> 'png'
   cmd = f"dot {graph_path} -T {extension} -o {to_path}"
   subprocess.run(cmd, shell=True, check=True)
+
+def reshape_sum_backward(
+        gy: Variable,
+        x_shape: tuple[int, ...],
+        axis: int | tuple[int, ...] | None,
+        keepdims: bool,
+    ) -> Variable:
+  """將求和輸出的梯度重塑為與輸入維度數一致的形狀，以利後續廣播。"""
+  import dezero.functions as F
+
+  if len(x_shape) == 0 or keepdims:
+    return gy
+
+  actual_axis: set[int]
+  if axis is None:
+    actual_axis = set(range(len(x_shape)))
+  elif isinstance(axis, int):
+    actual_axis = {axis if axis >= 0 else axis + len(x_shape)}
+  else:
+    actual_axis = {a if a >= 0 else a + len(x_shape) for a in axis}
+
+  target_shape = tuple(
+      1 if i in actual_axis else dim for i, dim in enumerate(x_shape)
+  )
+  return F.reshape(gy, target_shape)
+
+def sum_to_array(x: np.ndarray, target_shape: tuple[int, ...]) -> np.ndarray:
+  """將 NumPy 陣列沿著廣播軸求和，壓縮至指定的 target_shape。"""
+  # 找出當初因為維度數不足而被額外補上並拉長的維度
+  ndim = len(target_shape)
+  lead = x.ndim - ndim
+  lead_axis = tuple(range(lead))
+
+  # 找出長度為 1 且原本在 x 中大於 1 的軸（被廣播軸）
+  axis = [i + lead for i, sx in enumerate(target_shape) if sx == 1]
+
+  y = x.sum(axis=lead_axis + tuple(axis), keepdims=True)
+  if lead > 0:
+    y = y.squeeze(lead_axis)
+  return y

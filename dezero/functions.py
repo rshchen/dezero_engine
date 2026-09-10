@@ -1,9 +1,10 @@
 # 檔案：dezero/functions.py
 from __future__ import annotations
+
+from typing import Sequence
 import numpy as np
 from dezero.core import Function, Variable, as_variable
-from typing import Sequence
-
+from dezero.utils import reshape_sum_backward, sum_to_array
 
 class Square(Function):
 
@@ -95,6 +96,55 @@ class Transpose(Function):
     inv_axes = tuple(np.argsort(self.axes))
     return transpose(gy, inv_axes)
 
+class Sum(Function):
+
+  def __init__(
+      self,
+      axis: int | tuple[int, ...] | None = None,
+      keepdims: bool = False,
+  ) -> None:
+    self.axis = axis
+    self.keepdims = keepdims
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    self.x_shape = x.shape
+    y = np.sum(x, axis=self.axis, keepdims=self.keepdims)
+    return y
+
+  def backward(self, gy: Variable) -> Variable:
+    # 1. 補齊被壓縮的軸（長度設為 1），使秩與輸入對齊
+    gy = reshape_sum_backward(gy, self.x_shape, self.axis, self.keepdims)
+    # 2. 沿求和軸複製填充回原始形狀
+    gx = broadcast_to(gy, self.x_shape)
+    return gx
+
+class BroadcastTo(Function):
+
+  def __init__(self, shape: tuple[int, ...]) -> None:
+    self.shape = shape
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    self.x_shape = x.shape
+    y = np.broadcast_to(x, self.shape)
+    return y
+
+  def backward(self, gy: Variable) -> Variable:
+    gx = sum_to(gy, self.x_shape)
+    return gx
+
+class SumTo(Function):
+
+  def __init__(self, shape: tuple[int, ...]) -> None:
+    self.shape = shape
+
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    self.x_shape = x.shape
+    y = sum_to_array(x, self.shape)
+    return y
+
+  def backward(self, gy: Variable) -> Variable:
+    gx = broadcast_to(gy, self.x_shape)
+    return gx
 
 def exp(x: Variable | np.ndarray | float | int) -> Variable:
   return Exp()(as_variable(x))
@@ -131,3 +181,30 @@ def transpose(
   if axes is not None:
     axes = tuple(axes)
   return Transpose(axes)(x)
+
+
+def sum(
+    x: Variable | np.ndarray,
+    axis: int | Sequence[int] | None = None,
+    keepdims: bool = False,
+) -> Variable:
+  x = as_variable(x)
+  if axis is not None and not isinstance(axis, int):
+    axis = tuple(axis)
+  return Sum(axis, keepdims)(x)
+
+def broadcast_to(
+    x: Variable | np.ndarray, shape: Sequence[int] | int
+) -> Variable:
+  x = as_variable(x)
+  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
+  if x.shape == target_shape:
+    return x
+  return BroadcastTo(target_shape)(x)
+
+def sum_to(x: Variable | np.ndarray, shape: Sequence[int] | int) -> Variable:
+  x = as_variable(x)
+  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
+  if x.shape == target_shape:
+    return x
+  return SumTo(target_shape)(x)
