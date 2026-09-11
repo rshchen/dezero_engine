@@ -342,6 +342,17 @@ def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
 def pow(x: Variable, c: int | float) -> Variable:
   return Pow(c)(x)
 
+def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
+  import dezero.functions as F
+
+  return F.matmul(x, W)
+
+
+def rmatmul(W: Variable | np.ndarray, x: Variable | np.ndarray) -> Variable:
+  import dezero.functions as F
+
+  return F.matmul(x, W)
+
 # 動態掛載魔術方法
 def setup_variable():
   Variable.__add__ = add
@@ -354,3 +365,8 @@ def setup_variable():
   Variable.__truediv__ = div
   Variable.__rtruediv__ = rdiv
   Variable.__pow__ = pow
+
+  # 矩陣乘法 @ 運算子多載
+  Variable.matmul = matmul
+  Variable.__matmul__ = matmul
+  Variable.__rmatmul__ = rmatmul

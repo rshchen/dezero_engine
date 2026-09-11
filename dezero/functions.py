@@ -146,6 +146,18 @@ class SumTo(Function):
     gx = broadcast_to(gy, self.x_shape)
     return gx
 
+class MatMul(Function):
+
+  def forward(self, x: np.ndarray, W: np.ndarray) -> np.ndarray:
+    y = x.dot(W)
+    return y
+
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+    x, W = self.inputs
+    gx = matmul(gy, W.T)
+    gW = matmul(x.T, gy)
+    return gx, gW
+
 def exp(x: Variable | np.ndarray | float | int) -> Variable:
   return Exp()(as_variable(x))
 
@@ -208,3 +220,6 @@ def sum_to(x: Variable | np.ndarray, shape: Sequence[int] | int) -> Variable:
   if x.shape == target_shape:
     return x
   return SumTo(target_shape)(x)
+
+def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
+  return MatMul()(as_variable(x), as_variable(W))
