@@ -172,7 +172,16 @@ class MeanSquaredError(Function):
     gx1 = -gx0
     return gx0, gx1
 
+class Sigmoid(Function):
 
+  def forward(self, x: np.ndarray) -> np.ndarray:
+    y = 1.0 / (1.0 + np.exp(-x))
+    return y
+
+  def backward(self, gy: Variable) -> Variable:
+    y = self.outputs[0]()
+    gx = gy * y * (1.0 - y)
+    return gx
 
 
 
@@ -248,3 +257,20 @@ def mean_squared_error(
     x0: Variable | np.ndarray, x1: Variable | np.ndarray
 ) -> Variable:
   return MeanSquaredError()(as_variable(x0), as_variable(x1))
+
+def sigmoid(x: Variable | np.ndarray) -> Variable:
+  return Sigmoid()(as_variable(x))
+
+
+def linear(
+    x: Variable | np.ndarray,
+    W: Variable | np.ndarray,
+    b: Variable | np.ndarray | None = None,
+) -> Variable:
+  t = x @ W
+  if b is None:
+    return t
+
+  y = t + b
+  t.data = None  # 手動釋放中間張量數值，減少記憶體佔用
+  return y

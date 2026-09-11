@@ -14,7 +14,15 @@ from dezero.core import (
 setup_variable()
 
 # 核心就緒後，再匯入擴充算子庫
-from dezero.functions import cos, exp, sin, square, tanh
+from dezero.functions import (
+    cos,
+    exp,
+    sin,
+    square,
+    tanh,
+    mean_squared_error,
+    sigmoid,
+) 
 
 __all__ = [
     "Variable",
@@ -29,5 +37,7 @@ __all__ = [
     "sin",
     "cos",
     "tanh",
+    "mean_squared_error",
+    "sigmoid",
 ]
 
