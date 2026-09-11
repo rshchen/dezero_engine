@@ -158,6 +158,26 @@ class MatMul(Function):
     gW = matmul(x.T, gy)
     return gx, gW
 
+class MeanSquaredError(Function):
+
+  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    diff = x0 - x1
+    y = (diff**2).sum() / len(x0)
+    return y
+
+  def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+    x0, x1 = self.inputs
+    diff = x0 - x1
+    gx0 = gy * (2.0 / len(x0)) * diff
+    gx1 = -gx0
+    return gx0, gx1
+
+
+
+
+
+
+
 def exp(x: Variable | np.ndarray | float | int) -> Variable:
   return Exp()(as_variable(x))
 
@@ -223,3 +243,8 @@ def sum_to(x: Variable | np.ndarray, shape: Sequence[int] | int) -> Variable:
 
 def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
   return MatMul()(as_variable(x), as_variable(W))
+
+def mean_squared_error(
+    x0: Variable | np.ndarray, x1: Variable | np.ndarray
+) -> Variable:
+  return MeanSquaredError()(as_variable(x0), as_variable(x1))
