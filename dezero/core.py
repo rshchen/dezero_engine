@@ -206,6 +206,9 @@ class Function:
     raise NotImplementedError()
 
 
+class Parameter(Variable):
+  pass
+
 
 class Add(Function):
 

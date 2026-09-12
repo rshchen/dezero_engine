@@ -8,6 +8,7 @@ from dezero.core import (
     no_grad,
     setup_variable,
     using_config,
+    Parameter,
 )
 
 # 優先執行運算子掛載，確保 Variable 具備重載方法
@@ -39,5 +40,6 @@ __all__ = [
     "tanh",
     "mean_squared_error",
     "sigmoid",
+    "Parameter",
 ]
 
