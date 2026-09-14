@@ -12,7 +12,7 @@ class Layer:
 
   def __setattr__(self, name: str, value: object):
     # 若指派的屬性為 Parameter，則自動加入參數註冊集合
-    if isinstance(value, Parameter):
+    if isinstance(value, (Parameter, Layer)):
       self._params.add(name)
     # 委託 object 原生機制安全寫入實例字典，避免無窮遞迴
     super().__setattr__(name, value)
@@ -34,7 +34,13 @@ class Layer:
   def params(self):
     # 透過生成器惰性走訪當前層所屬的所有可學習參數
     for name in self._params:
-      yield self.__dict__[name]
+        obj = self.__dict__[name]
+        if isinstance(obj, Layer):
+          # 透過 yield from 將子層所持有的參數逐一向外轉發
+          yield from obj.params()
+        else:
+          # 當前物件為具體的 Parameter 實體，直接釋出
+          yield obj
 
   def cleargrads(self):
     # 批次清空所有已註冊參數的梯度
