@@ -25,6 +25,8 @@ from dezero.functions import (
     sigmoid,
 ) 
 
+import dezero.optimizers as optimizers
+
 __all__ = [
     "Variable",
     "Function",

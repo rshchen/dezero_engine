@@ -230,7 +230,7 @@ class Softmax(Function):
     gx -= y * sum_gx
     return gx
 
-# 檔案：dezero/functions.py
+
 class SoftmaxCrossEntropy(Function):
 
   def forward(self, x, t):
