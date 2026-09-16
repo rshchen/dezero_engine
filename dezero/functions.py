@@ -183,6 +183,95 @@ class Sigmoid(Function):
     gx = gy * y * (1.0 - y)
     return gx
 
+class GetItem(Function):
+
+  def __init__(self, slices):
+    self.slices = slices
+
+  def forward(self, x):
+    return x[self.slices]
+
+  def backward(self, gy):
+    x, = self.inputs
+    return GetItemGrad(self.slices, x.shape)(gy)
+
+
+class GetItemGrad(Function):
+
+  def __init__(self, slices, in_shape):
+    self.slices = slices
+    self.in_shape = in_shape
+
+  def forward(self, gy):
+    gx = np.zeros(self.in_shape, dtype=gy.dtype)
+    np.add.at(gx, self.slices, gy)
+    return gx
+
+  def backward(self, ggx):
+    return get_item(ggx, self.slices)
+
+class Softmax(Function):
+
+  def __init__(self, axis=1):
+    self.axis = axis
+
+  def forward(self, x):
+    # 減去維度最大值避免指數溢位
+    x_max = x.max(axis=self.axis, keepdims=True)
+    exp_x = np.exp(x - x_max)
+    y = exp_x / exp_x.sum(axis=self.axis, keepdims=True)
+    return y
+
+  def backward(self, gy):
+    y = self.outputs[0]()
+    # Softmax 反向傳播推導公式：gy * y - y * sum(gy * y)
+    gx = gy * y
+    sum_gx = gx.sum(axis=self.axis, keepdims=True)
+    gx -= y * sum_gx
+    return gx
+
+# 檔案：dezero/functions.py
+class SoftmaxCrossEntropy(Function):
+
+  def forward(self, x, t):
+    N = x.shape[0]
+
+    # 1. 數值穩定的 Softmax 前向計算
+    x_max = x.max(axis=1, keepdims=True)
+    exp_x = np.exp(x - x_max)
+    y = exp_x / exp_x.sum(axis=1, keepdims=True)
+
+    # 裁剪極端數值避免 log(0)
+    eps = 1e-15
+    y_clipped = np.clip(y, eps, 1.0)
+
+    # 2. 交叉熵計算（支援索引標籤與 One-hot 標籤）
+    if t.ndim == 1:
+      log_p = np.log(y_clipped[np.arange(N), t])
+    else:
+      log_p = np.log(y_clipped) * t
+    loss = -log_p.sum() / N
+
+    # 保存預測機率供反向傳播直接使用
+    self.y = y
+    self.t = t
+    return loss
+
+  def backward(self, gy):
+    N, CLS = self.y.shape
+    gx = self.y.copy()
+
+    # 3. 梯度計算：(y - t) / N * gy
+    if self.t.ndim == 1:
+      gx[np.arange(N), self.t] -= 1.0
+    else:
+      gx -= self.t
+
+    gx *= gy.data / N
+    return as_variable(gx), None
+
+
+
 
 
 
@@ -274,3 +363,13 @@ def linear(
   y = t + b
   t.data = None  # 手動釋放中間張量數值，減少記憶體佔用
   return y
+
+def get_item(x, slices):
+  return GetItem(slices)(x)
+
+def softmax(x, axis=1):
+  return Softmax(axis)(x)
+
+
+def softmax_cross_entropy(x, t):
+  return SoftmaxCrossEntropy()(x, t)

@@ -373,3 +373,6 @@ def setup_variable():
   Variable.matmul = matmul
   Variable.__matmul__ = matmul
   Variable.__rmatmul__ = rmatmul
+  
+  from dezero.functions import get_item
+  Variable.__getitem__ = lambda self, slices: get_item(self, slices)
