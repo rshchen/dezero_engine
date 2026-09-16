@@ -7,20 +7,23 @@ import dezero.datasets as D
 import dezero.functions as F
 from dezero.models import MLP
 from dezero.optimizers import SGD
+from dezero.transforms import Compose
 
 
 def test_dataset_interface_and_transform():
-  # 驗證無轉換時的基礎規格
   train_set = D.Spiral(train=True)
   assert len(train_set) == 300
   x_sample, t_sample = train_set[0]
   assert x_sample.shape == (2,)
   assert isinstance(int(t_sample), int)
 
-  # 驗證 transform 前處理管線
-  scaled_set = D.Spiral(train=True, transform=lambda x: x * 10.0)
-  x_scaled, _ = scaled_set[0]
-  np.testing.assert_allclose(x_scaled, x_sample * 10.0)
+  transform = Compose([
+      lambda x: x * 2.0,
+      lambda x: x + 1.0,
+  ])
+  transformed_set = D.Spiral(train=True, transform=transform)
+  x_transformed, _ = transformed_set[0]
+  np.testing.assert_allclose(x_transformed, x_sample * 2.0 + 1.0)
 
 
 def test_dataset_minibatch_training():
@@ -44,7 +47,6 @@ def test_dataset_minibatch_training():
 
     for i in range(max_iter):
       batch_index = index[i * batch_size : (i + 1) * batch_size]
-      # 透過列表推導式向 Dataset 單筆索取樣本，組裝小批次
       batch = [train_set[idx] for idx in batch_index]
       batch_x = np.array([example[0] for example in batch])
       batch_t = np.array([example[1] for example in batch])
