@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Sequence
 import numpy as np
 from dezero.core import Function, Variable, as_variable
-from dezero.utils import reshape_sum_backward, sum_to_array
+from dezero.utils import reshape_sum_backward, sum_to_array, as_array
 
 class Square(Function):
 
@@ -271,7 +271,15 @@ class SoftmaxCrossEntropy(Function):
     return as_variable(gx), None
 
 
+def accuracy(y, t):
+  y = as_variable(y)
+  t = as_variable(t)
 
+  pred = y.data.argmax(axis=1)
+  pred = pred.reshape(t.shape)
+  result = (pred == t.data)
+  acc = np.mean(result)
+  return Variable(as_array(acc))
 
 
 
