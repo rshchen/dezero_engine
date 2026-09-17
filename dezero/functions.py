@@ -5,6 +5,7 @@ from typing import Sequence
 import numpy as np
 from dezero.core import Function, Variable, as_variable
 from dezero.utils import reshape_sum_backward, sum_to_array, as_array
+import dezero.cuda as cuda
 
 class Square(Function):
 
@@ -36,7 +37,8 @@ def exp(x: Variable | np.ndarray | float | int) -> Variable:
 class Sin(Function):
 
   def forward(self, x: np.ndarray) -> np.ndarray:
-    return np.sin(x)
+    xp = cuda.get_array_module(x)
+    return xp.sin(x)
 
   def backward(self, gy: Variable) -> Variable:
     x = self.inputs[0]

@@ -1,18 +1,25 @@
 # 檔案：dezero/core.py
 from __future__ import annotations
-
 import contextlib
 from typing import Sequence
 import weakref
 import numpy as np
 from dezero.utils import as_array
+import dezero.cuda as cuda
+
+try:
+  import cupy
+
+  array_types = (np.ndarray, cupy.ndarray)
+except ImportError:
+  array_types = (np.ndarray,)
 
 
 # 轉型成變數的工具函式
-def as_variable(obj: Variable | np.ndarray | float | int) -> Variable:
+def as_variable(obj, array_module=np) -> Variable:
   if isinstance(obj, Variable):
     return obj
-  return Variable(as_array(obj))
+  return Variable(as_array(obj, array_module=array_module))
 
 # 定義全域組態開關類別
 class Config:
@@ -34,10 +41,10 @@ def no_grad():
   return using_config("enable_backprop", False)
 
 class Variable:
-  def __init__(self, data: np.ndarray, name: str | None = None):
+  def __init__(self, data, name: str | None = None):
     if data is not None:
       # 嚴格檢查傳入資料型別是否為 np.ndarray
-      if not isinstance(data, np.ndarray):
+      if not isinstance(data, array_types):
           raise TypeError(f'{type(data)} is not supported')
 
     self.data = data
@@ -125,9 +132,19 @@ class Variable:
 
     return F.sum_to(self, shape=shape)
 
+
+  def to_cpu(self):
+    if self.data is not None:
+      self.data = cuda.as_numpy(self.data)
+
+  def to_gpu(self):
+    if self.data is not None:
+      self.data = cuda.as_cupy(self.data)
+
   def backward(self, retain_grad: bool = False, create_graph: bool = False):
     if self.grad is None:
-      self.grad = Variable(np.ones_like(self.data))
+      xp = cuda.get_array_module(self.data)
+      self.grad = Variable(xp.ones_like(self.data))
 
     funcs: list[Function] = []
     seen_set: set[Function] = set()
@@ -229,7 +246,8 @@ class Add(Function):
     return gx0, gx1
 
 def add(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
+  xp = cuda.get_array_module(x0.data)
+  x1 = as_variable(x1, array_module=xp)
   return Add()(x0, x1)
 
 class Mul(Function):

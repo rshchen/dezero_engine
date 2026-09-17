@@ -11,7 +11,7 @@ class Layer:
     self._params = set()
 
   def __setattr__(self, name: str, value: object):
-    # 若指派的屬性為 Parameter，則自動加入參數註冊集合
+    
     if isinstance(value, (Parameter, Layer)):
       self._params.add(name)
     # 委託 object 原生機制安全寫入實例字典，避免無窮遞迴
@@ -47,6 +47,13 @@ class Layer:
     for param in self.params():
       param.cleargrad()
 
+  def to_cpu(self):
+    for param in self.params():
+      param.to_cpu()
+
+  def to_gpu(self):
+    for param in self.params():
+      param.to_gpu()
 
 
 class Linear(Layer):

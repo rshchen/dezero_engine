@@ -8,12 +8,12 @@ import numpy as np
 
 if TYPE_CHECKING:
   from dezero.core import Function, Variable
-
+import dezero.cuda as cuda
 
 # 純量轉型工具函式
-def as_array(x):
+def as_array(x, array_module=np):
     if np.isscalar(x):
-        return np.array(x)
+        return array_module.array(x)
     return x
 
 
