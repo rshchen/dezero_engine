@@ -8,6 +8,7 @@ dependencies = [
     "graphviz>=0.21",
     "numpy>=1.24.0",
     "pytest>=9.1.1",
+    "scikit-learn>=1.9.1",
 ]
 
 [tool.uv]

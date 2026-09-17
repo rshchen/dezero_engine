@@ -16,6 +16,9 @@ class Square(Function):
     gx = 2 * x * gy
     return gx
 
+def square(x: Variable | np.ndarray | float | int) -> Variable:
+  return Square()(as_variable(x))
+
 
 class Exp(Function):
 
@@ -27,6 +30,8 @@ class Exp(Function):
     gx = exp(x) * gy  # 遞迴使用 DeZero 封裝之 exp 函式
     return gx
 
+def exp(x: Variable | np.ndarray | float | int) -> Variable:
+  return Exp()(as_variable(x))
 
 class Sin(Function):
 
@@ -38,6 +43,8 @@ class Sin(Function):
     gx = gy * cos(x)
     return gx
 
+def sin(x: Variable | np.ndarray | float | int) -> Variable:
+  return Sin()(as_variable(x))
 
 class Cos(Function):
 
@@ -49,6 +56,8 @@ class Cos(Function):
     gx = gy * -sin(x)
     return gx
 
+def cos(x: Variable | np.ndarray | float | int) -> Variable:
+  return Cos()(as_variable(x))
 
 class Tanh(Function):
 
@@ -59,6 +68,9 @@ class Tanh(Function):
     y = self.outputs[0]()  # 取用前向輸出變數的弱引用
     gx = gy * (1.0 - y * y)
     return gx
+
+def tanh(x: Variable | np.ndarray | float | int) -> Variable:
+  return Tanh()(as_variable(x))
 
 
 class Reshape(Function):
@@ -75,8 +87,18 @@ class Reshape(Function):
   def backward(self, gy: Variable) -> Variable:
     return reshape(gy, self.x_shape)
 
-def square(x: Variable | np.ndarray | float | int) -> Variable:
-  return Square()(as_variable(x))
+def reshape(
+    x: Variable | np.ndarray, shape: int | Sequence[int]
+) -> Variable:
+  x = as_variable(x)
+  if isinstance(shape, int):
+    target_shape = (shape,)
+  else:
+    target_shape = tuple(shape)
+
+  if x.shape == target_shape:
+    return as_variable(x)
+  return Reshape(target_shape)(x)
 
 
 class Transpose(Function):
@@ -95,6 +117,16 @@ class Transpose(Function):
     # 計算通用逆置換：若 axes = (1, 2, 0)，則 inv_axes = (2, 0, 1)
     inv_axes = tuple(np.argsort(self.axes))
     return transpose(gy, inv_axes)
+
+def transpose(
+    x: Variable | np.ndarray, axes: Sequence[int] | None = None
+) -> Variable:
+  x = as_variable(x)
+  if axes is not None:
+    axes = tuple(axes)
+  return Transpose(axes)(x)
+
+
 
 class Sum(Function):
 
@@ -118,6 +150,17 @@ class Sum(Function):
     gx = broadcast_to(gy, self.x_shape)
     return gx
 
+def sum(
+    x: Variable | np.ndarray,
+    axis: int | Sequence[int] | None = None,
+    keepdims: bool = False,
+) -> Variable:
+  x = as_variable(x)
+  if axis is not None and not isinstance(axis, int):
+    axis = tuple(axis)
+  return Sum(axis, keepdims)(x)
+
+
 class BroadcastTo(Function):
 
   def __init__(self, shape: tuple[int, ...]) -> None:
@@ -131,6 +174,16 @@ class BroadcastTo(Function):
   def backward(self, gy: Variable) -> Variable:
     gx = sum_to(gy, self.x_shape)
     return gx
+
+def broadcast_to(
+    x: Variable | np.ndarray, shape: Sequence[int] | int
+) -> Variable:
+  x = as_variable(x)
+  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
+  if x.shape == target_shape:
+    return x
+  return BroadcastTo(target_shape)(x)
+
 
 class SumTo(Function):
 
@@ -146,6 +199,14 @@ class SumTo(Function):
     gx = broadcast_to(gy, self.x_shape)
     return gx
 
+def sum_to(x: Variable | np.ndarray, shape: Sequence[int] | int) -> Variable:
+  x = as_variable(x)
+  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
+  if x.shape == target_shape:
+    return x
+  return SumTo(target_shape)(x)
+
+
 class MatMul(Function):
 
   def forward(self, x: np.ndarray, W: np.ndarray) -> np.ndarray:
@@ -157,6 +218,9 @@ class MatMul(Function):
     gx = matmul(gy, W.T)
     gW = matmul(x.T, gy)
     return gx, gW
+
+def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
+  return MatMul()(as_variable(x), as_variable(W))
 
 class MeanSquaredError(Function):
 
@@ -172,6 +236,11 @@ class MeanSquaredError(Function):
     gx1 = -gx0
     return gx0, gx1
 
+def mean_squared_error(
+    x0: Variable | np.ndarray, x1: Variable | np.ndarray
+) -> Variable:
+  return MeanSquaredError()(as_variable(x0), as_variable(x1))
+
 class Sigmoid(Function):
 
   def forward(self, x: np.ndarray) -> np.ndarray:
@@ -182,6 +251,10 @@ class Sigmoid(Function):
     y = self.outputs[0]()
     gx = gy * y * (1.0 - y)
     return gx
+
+
+def sigmoid(x: Variable | np.ndarray) -> Variable:
+  return Sigmoid()(as_variable(x))
 
 class GetItem(Function):
 
@@ -195,6 +268,8 @@ class GetItem(Function):
     x, = self.inputs
     return GetItemGrad(self.slices, x.shape)(gy)
 
+def get_item(x, slices):
+  return GetItem(slices)(x)
 
 class GetItemGrad(Function):
 
@@ -230,6 +305,8 @@ class Softmax(Function):
     gx -= y * sum_gx
     return gx
 
+def softmax(x, axis=1):
+  return Softmax(axis)(x)
 
 class SoftmaxCrossEntropy(Function):
 
@@ -270,93 +347,24 @@ class SoftmaxCrossEntropy(Function):
     gx *= gy.data / N
     return as_variable(gx), None
 
+def softmax_cross_entropy(x, t):
+  return SoftmaxCrossEntropy()(x, t)
 
-def accuracy(y, t):
-  y = as_variable(y)
-  t = as_variable(t)
+class ReLU(Function):
 
-  pred = y.data.argmax(axis=1)
-  pred = pred.reshape(t.shape)
-  result = (pred == t.data)
-  acc = np.mean(result)
-  return Variable(as_array(acc))
+  def forward(self, x):
+    y = np.maximum(x, 0.0)
+    return y
 
+  def backward(self, gy):
+    x, = self.inputs
+    mask = x.data > 0
+    gx = gy * mask
+    return gx
 
+def relu(x):
+  return ReLU()(x)
 
-
-def exp(x: Variable | np.ndarray | float | int) -> Variable:
-  return Exp()(as_variable(x))
-
-
-def sin(x: Variable | np.ndarray | float | int) -> Variable:
-  return Sin()(as_variable(x))
-
-
-def cos(x: Variable | np.ndarray | float | int) -> Variable:
-  return Cos()(as_variable(x))
-
-
-def tanh(x: Variable | np.ndarray | float | int) -> Variable:
-  return Tanh()(as_variable(x))
-
-def reshape(
-    x: Variable | np.ndarray, shape: int | Sequence[int]
-) -> Variable:
-  x = as_variable(x)
-  if isinstance(shape, int):
-    target_shape = (shape,)
-  else:
-    target_shape = tuple(shape)
-
-  if x.shape == target_shape:
-    return as_variable(x)
-  return Reshape(target_shape)(x)
-
-def transpose(
-    x: Variable | np.ndarray, axes: Sequence[int] | None = None
-) -> Variable:
-  x = as_variable(x)
-  if axes is not None:
-    axes = tuple(axes)
-  return Transpose(axes)(x)
-
-
-def sum(
-    x: Variable | np.ndarray,
-    axis: int | Sequence[int] | None = None,
-    keepdims: bool = False,
-) -> Variable:
-  x = as_variable(x)
-  if axis is not None and not isinstance(axis, int):
-    axis = tuple(axis)
-  return Sum(axis, keepdims)(x)
-
-def broadcast_to(
-    x: Variable | np.ndarray, shape: Sequence[int] | int
-) -> Variable:
-  x = as_variable(x)
-  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
-  if x.shape == target_shape:
-    return x
-  return BroadcastTo(target_shape)(x)
-
-def sum_to(x: Variable | np.ndarray, shape: Sequence[int] | int) -> Variable:
-  x = as_variable(x)
-  target_shape = (shape,) if isinstance(shape, int) else tuple(shape)
-  if x.shape == target_shape:
-    return x
-  return SumTo(target_shape)(x)
-
-def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
-  return MatMul()(as_variable(x), as_variable(W))
-
-def mean_squared_error(
-    x0: Variable | np.ndarray, x1: Variable | np.ndarray
-) -> Variable:
-  return MeanSquaredError()(as_variable(x0), as_variable(x1))
-
-def sigmoid(x: Variable | np.ndarray) -> Variable:
-  return Sigmoid()(as_variable(x))
 
 
 def linear(
@@ -372,12 +380,29 @@ def linear(
   t.data = None  # 手動釋放中間張量數值，減少記憶體佔用
   return y
 
-def get_item(x, slices):
-  return GetItem(slices)(x)
-
-def softmax(x, axis=1):
-  return Softmax(axis)(x)
 
 
-def softmax_cross_entropy(x, t):
-  return SoftmaxCrossEntropy()(x, t)
+
+def accuracy(y, t):
+  y = as_variable(y)
+  t = as_variable(t)
+
+  pred = y.data.argmax(axis=1)
+  pred = pred.reshape(t.shape)
+  result = (pred == t.data)
+  acc = np.mean(result)
+  return Variable(as_array(acc))
+
+
+
+
+
+
+
+
+
+
+
+
+
+

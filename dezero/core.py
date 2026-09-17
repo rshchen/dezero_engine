@@ -228,6 +228,9 @@ class Add(Function):
       gx1 = F.sum_to(gx1, self.x1_shape)
     return gx0, gx1
 
+def add(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Add()(x0, x1)
 
 class Mul(Function):
 
@@ -246,6 +249,9 @@ class Mul(Function):
       gx1 = F.sum_to(gx1, x1.shape)
     return gx0, gx1
 
+def mul(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Mul()(x0, x1)
 
 class Neg(Function):
 
@@ -255,6 +261,8 @@ class Neg(Function):
   def backward(self, gy: np.ndarray) -> np.ndarray:
     return -gy
 
+def neg(x: Variable) -> Variable:
+  return Neg()(x)
 
 class Sub(Function):
 
@@ -272,6 +280,14 @@ class Sub(Function):
       gx0 = F.sum_to(gx0, self.x0_shape)
       gx1 = F.sum_to(gx1, self.x1_shape)
     return gx0, gx1
+
+def sub(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Sub()(x0, x1)
+
+def rsub(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Sub()(x1, x0)
 
 class Div(Function):
 
@@ -291,6 +307,14 @@ class Div(Function):
       gx1 = F.sum_to(gx1, self.x1_shape)
     return gx0, gx1
 
+def div(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Div()(x0, x1)
+
+
+def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
+  x1 = as_variable(x1)
+  return Div()(x1, x0)
 
 
 class Pow(Function):
@@ -306,44 +330,10 @@ class Pow(Function):
     c = self.c
     return c * (x ** (c - 1)) * gy
 
-
-# 封裝算子輔助函式
-def add(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Add()(x0, x1)
-
-
-def mul(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Mul()(x0, x1)
-
-
-def neg(x: Variable) -> Variable:
-  return Neg()(x)
-
-
-def sub(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Sub()(x0, x1)
-
-
-def rsub(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Sub()(x1, x0)
-
-
-def div(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Div()(x0, x1)
-
-
-def rdiv(x0: Variable, x1: Variable | float | int) -> Variable:
-  x1 = as_variable(x1)
-  return Div()(x1, x0)
-
-
 def pow(x: Variable, c: int | float) -> Variable:
   return Pow(c)(x)
+
+
 
 def matmul(x: Variable | np.ndarray, W: Variable | np.ndarray) -> Variable:
   import dezero.functions as F
@@ -373,6 +363,6 @@ def setup_variable():
   Variable.matmul = matmul
   Variable.__matmul__ = matmul
   Variable.__rmatmul__ = rmatmul
-  
+
   from dezero.functions import get_item
   Variable.__getitem__ = lambda self, slices: get_item(self, slices)
