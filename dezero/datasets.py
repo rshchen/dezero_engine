@@ -84,9 +84,9 @@ class MNIST(Dataset):
       label = mnist.target.astype(np.int64)
       np.savez_compressed(cache_file, data=data, label=label)
 
-    raw_data = np.load(cache_file)
-    data = raw_data["data"]
-    label = raw_data["label"]
+    with np.load(cache_file) as raw_data:
+        data = raw_data["data"]
+        label = raw_data["label"]
 
     if self.train:
       self.data = data[:60000]

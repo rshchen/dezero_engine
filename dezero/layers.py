@@ -1,9 +1,11 @@
 # 檔案：dezero/layers.py
 from __future__ import annotations
+from pathlib import Path
 import numpy as np
 from dezero.core import Parameter
 import dezero.functions as F
 import weakref
+import dezero.cuda as cuda
 
 class Layer:
 
@@ -55,6 +57,49 @@ class Layer:
     for param in self.params():
       param.to_gpu()
 
+  def _flatten_params(self, params_dict, parent_key=""):
+    """遞迴展平層級參數，將結果就地寫入傳入的 params_dict。"""
+    for name in self._params:
+      obj = self.__dict__[name]
+      key = f"{parent_key}/{name}" if parent_key else name
+
+      if isinstance(obj, Layer):
+        obj._flatten_params(params_dict, parent_key=key)
+      else:
+        params_dict[key] = obj
+
+  def save_weights(self, path):
+    """將所有層級參數序列化為 .npz 檔案。"""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    params_dict = {}
+    self._flatten_params(params_dict)
+
+    array_dict = {}
+    for key, param in params_dict.items():
+      if param is not None and param.data is not None:
+        # 若資料位於 GPU，轉換至 CPU 陣列以確保通用儲存相容性
+        array_dict[key] = cuda.as_numpy(param.data)
+
+    # 透過 ** 字典解包，以具名引數方式傳遞給 np.savez_compressed
+    np.savez_compressed(path, **array_dict)
+
+  def load_weights(self, path):
+    """從 .npz 檔案反序列化並注入參數陣列。"""
+    path = Path(path)
+    if not path.exists():
+      raise FileNotFoundError(f"Weight file not found: {path}")
+
+    params_dict = {}
+    self._flatten_params(params_dict)
+
+    with np.load(path) as npz_file:
+      for key, param in params_dict.items():
+        if key in npz_file and param is not None:
+          param_data = npz_file[key]
+          # 確保還原時符合目標層目前所在的硬體裝置 (NumPy / CuPy)
+          param.data = cuda.get_array_module(param).asarray(param_data)
 
 class Linear(Layer):
 
