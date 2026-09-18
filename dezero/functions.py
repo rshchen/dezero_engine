@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Sequence
 import numpy as np
-from dezero.core import Function, Variable, as_variable
+from dezero.core import Function, Variable, as_variable, Config
 from dezero.utils import reshape_sum_backward, sum_to_array, as_array
 import dezero.cuda as cuda
 
@@ -366,6 +366,37 @@ class ReLU(Function):
 
 def relu(x):
   return ReLU()(x)
+
+
+
+class Dropout(Function):
+
+  def __init__(self, dropout_ratio):
+    self.dropout_ratio = dropout_ratio
+    self.mask = None
+
+  def forward(self, x):
+    # 生成保留機率為 (1 - dropout_ratio) 的二元遮罩
+    scale = 1.0 - self.dropout_ratio
+    mask = np.random.rand(*x.shape) > self.dropout_ratio
+    self.mask = mask
+    y = x * mask / scale
+    return y
+
+  def backward(self, gy):
+    scale = 1.0 - self.dropout_ratio
+    gx = gy * self.mask / scale
+    return gx
+
+
+def dropout(x, dropout_ratio=0.5):
+  x = as_variable(x)
+  if Config.train:
+    return Dropout(dropout_ratio)(x)
+  else:
+    return x
+
+
 
 
 

@@ -24,6 +24,7 @@ def as_variable(obj, array_module=np) -> Variable:
 # 定義全域組態開關類別
 class Config:
   enable_backprop: bool = True
+  train = True
 
 
 # 實作基於 contextmanager 的通用組態切換器
@@ -36,6 +37,14 @@ def using_config(name: str, value: bool):
   finally:
     setattr(Config, name, old_value)
 
+@contextlib.contextmanager
+def test_mode():
+  orig_mode = Config.train
+  Config.train = False
+  try:
+    yield
+  finally:
+    Config.train = orig_mode
 
 def no_grad():
   return using_config("enable_backprop", False)
