@@ -157,3 +157,7 @@ def sum_to_array(x: np.ndarray, target_shape: tuple[int, ...]) -> np.ndarray:
   if lead > 0:
     y = y.squeeze(lead_axis)
   return y
+
+def get_conv_outsize(input_size, filter_size, stride, pad):
+  """計算卷積運算的空間輸出維度（Height 或 Width）。"""
+  return (input_size + 2 * pad - filter_size) // stride + 1
