@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Sequence
 import numpy as np
 from dezero.core import Function, Variable, as_variable, Config
-from dezero.utils import reshape_sum_backward, sum_to_array, as_array
+from dezero.utils import col2im, im2col, reshape_sum_backward, sum_to_array, as_array
 import dezero.cuda as cuda
 
 class Square(Function):
@@ -397,7 +397,111 @@ def dropout(x, dropout_ratio=0.5):
     return x
 
 
+class Conv2d(Function):
 
+  def __init__(self, stride=1, pad=0):
+    super().__init__()
+    self.stride = stride
+    self.pad = pad
+
+  def forward(self, x, W, b=None):
+    KH, KW = W.shape[2:]
+    col = im2col(x, (KH, KW), self.stride, self.pad, to_matrix=False)
+
+    N, C, KH, KW, OH, OW = col.shape
+    col = col.transpose((0, 4, 5, 1, 2, 3)).reshape(N * OH * OW, C * KH * KW)
+    W_row = W.reshape(W.shape[0], -1).T
+
+    t = np.dot(col, W_row)
+    if b is not None:
+      t += b
+    t = t.reshape(N, OH, OW, -1).transpose(0, 3, 1, 2)
+    return t
+
+  def backward(self, gy):
+    has_bias = len(self.inputs) == 3
+    if has_bias:
+      x, W, b = self.inputs
+    else:
+      x, W = self.inputs
+    
+    KH, KW = W.shape[2:]
+
+
+
+    # 2. 計算針對權重的梯度
+    col = im2col(x.data, (KH, KW), self.stride, self.pad, to_matrix=False)
+    N, C, KH, KW, OH, OW = col.shape
+    col = col.transpose((0, 4, 5, 1, 2, 3)).reshape(N * OH * OW, C * KH * KW)
+
+    gy_t = gy.data.transpose(0, 2, 3, 1).reshape(-1, gy.shape[1])
+    gW = np.dot(col.T, gy_t).transpose(1, 0).reshape(W.shape)
+    gW = as_variable(gW)
+
+    # 3. 計算針對輸入的梯度
+    W_row = W.data.reshape(W.shape[0], -1).T
+    gcol = np.dot(gy_t, W_row.T)
+    gx = col2im(gcol, x.shape, (KH, KW), self.stride, self.pad, to_matrix=True)
+    gx = as_variable(gx)
+
+    if not has_bias:
+        return gx, gW
+
+    # 1. 計算針對偏誤的梯度
+    gb = gy.sum(axis=(0, 2, 3))
+    return gx, gW, gb
+
+
+def conv2d(x, W, b=None, stride=1, pad=0):
+  if b is None:
+    return Conv2d(stride, pad)(x, W)
+  return Conv2d(stride, pad)(x, W, b)
+
+# 檔案：dezero/functions.py
+class Pooling(Function):
+
+  def __init__(self, kernel_size, stride=1, pad=0):
+    super().__init__()
+    self.kernel_size = kernel_size
+    self.stride = stride
+    self.pad = pad
+
+  def forward(self, x):
+    col = im2col(x, self.kernel_size, self.stride, self.pad, to_matrix=False)
+    N, C, KH, KW, OH, OW = col.shape
+    col = col.transpose(0, 1, 4, 5, 2, 3).reshape(N, C, OH, OW, -1)
+
+    self.arg_max = col.argmax(axis=-1)
+    y = col.max(axis=-1)
+    return y
+
+  def backward(self, gy):
+    x = self.inputs[0]
+    KH, KW = (
+        (self.kernel_size, self.kernel_size)
+        if isinstance(self.kernel_size, int)
+        else self.kernel_size
+    )
+
+    N, C, OH, OW = gy.shape
+    gcol = np.zeros((N, C, OH, OW, KH * KW), dtype=gy.dtype)
+    gcol[
+        np.arange(N).reshape(N, 1, 1, 1),
+        np.arange(C).reshape(1, C, 1, 1),
+        np.arange(OH).reshape(1, 1, OH, 1),
+        np.arange(OW).reshape(1, 1, 1, OW),
+        self.arg_max,
+    ] = gy.data
+
+    gcol = gcol.reshape(N, C, OH, OW, KH, KW).transpose(0, 1, 4, 5, 2, 3)
+    gx = col2im(
+        gcol, x.shape, self.kernel_size, self.stride, self.pad, to_matrix=False
+    )
+    return as_variable(gx)
+
+
+def pooling(x, kernel_size, stride=1, pad=0):
+  return Pooling(kernel_size, stride, pad)(x)
 
 
 def linear(

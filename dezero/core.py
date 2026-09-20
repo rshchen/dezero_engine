@@ -203,6 +203,7 @@ class Variable:
 class Function:
 
   def __call__(self, *inputs: Variable) -> Variable | tuple[Variable, ...]:
+    inputs = [as_variable(x) for x in inputs]
     xs = [x.data for x in inputs]
     ys = self.forward(*xs)
     # 確保 ys 為 tuple 結構

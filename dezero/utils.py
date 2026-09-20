@@ -161,3 +161,67 @@ def sum_to_array(x: np.ndarray, target_shape: tuple[int, ...]) -> np.ndarray:
 def get_conv_outsize(input_size, filter_size, stride, pad):
   """計算卷積運算的空間輸出維度（Height 或 Width）。"""
   return (input_size + 2 * pad - filter_size) // stride + 1
+
+def im2col(x, kernel_size, stride=1, pad=0, to_matrix=True):
+  """將 4D 輸入張量依據滑動視窗展開為 2D 矩陣。"""
+  x = np.asarray(x)
+  N, C, H, W = x.shape
+  KH, KW = (
+      (kernel_size, kernel_size)
+      if isinstance(kernel_size, int)
+      else kernel_size
+  )
+  SH, SW = (stride, stride) if isinstance(stride, int) else stride
+  PH, PW = (pad, pad) if isinstance(pad, int) else pad
+
+  OH = get_conv_outsize(H, KH, SH, PH)
+  OW = get_conv_outsize(W, KW, SW, PW)
+
+  img = np.pad(
+      x,
+      [(0, 0), (0, 0), (PH, PH + SH - 1), (PW, PW + SW - 1)],
+      mode="constant",
+  )
+  col = np.zeros((N, C, KH, KW, OH, OW), dtype=x.dtype)
+
+  for j in range(KH):
+    j_max = j + SH * OH
+    for i in range(KW):
+      i_max = i + SW * OW
+      col[:, :, j, i, :, :] = img[:, :, j:j_max:SH, i:i_max:SW]
+
+  if to_matrix:
+    col = col.transpose(0, 4, 5, 1, 2, 3).reshape(N * OH * OW, -1)
+
+  return col
+
+
+def col2im(col, x_shape, kernel_size, stride=1, pad=0, to_matrix=True):
+  """將展開的梯度矩陣沿空間視窗累加還原回 4D 張量形狀。"""
+  N, C, H, W = x_shape
+  KH, KW = (
+      (kernel_size, kernel_size)
+      if isinstance(kernel_size, int)
+      else kernel_size
+  )
+  SH, SW = (stride, stride) if isinstance(stride, int) else stride
+  PH, PW = (pad, pad) if isinstance(pad, int) else pad
+
+  OH = get_conv_outsize(H, KH, SH, PH)
+  OW = get_conv_outsize(W, KW, SW, PW)
+
+  if to_matrix:
+    col = col.reshape(N, OH, OW, C, KH, KW).transpose(0, 3, 4, 5, 1, 2)
+
+  img = np.zeros(
+      (N, C, H + 2 * PH + SH - 1, W + 2 * PW + SW - 1), dtype=col.dtype
+  )
+
+  for j in range(KH):
+    j_max = j + SH * OH
+    for i in range(KW):
+      i_max = i + SW * OW
+      img[:, :, j:j_max:SH, i:i_max:SW] += col[:, :, j, i, :, :]
+
+  return img[:, :, PH : H + PH, PW : W + PW]
+
