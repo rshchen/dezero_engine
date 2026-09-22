@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING, Callable, Sequence, Set
 import numpy as np
+import urllib.request
 
 if TYPE_CHECKING:
   from dezero.core import Function, Variable
@@ -225,3 +226,24 @@ def col2im(col, x_shape, kernel_size, stride=1, pad=0, to_matrix=True):
 
   return img[:, :, PH : H + PH, PW : W + PW]
 
+def get_file(url, file_name=None):
+  """下載遠端檔案並快取於使用者家目錄下的 .dezero 目錄。"""
+  cache_dir = Path.home() / ".dezero"
+  cache_dir.mkdir(parents=True, exist_ok=True)
+
+  if file_name is None:
+    file_name = Path(url).name
+
+  file_path = cache_dir / file_name
+
+  if not file_path.exists():
+    print(f"Downloading {file_name} from {url}...")
+    try:
+      urllib.request.urlretrieve(url, file_path)
+      print("Done.")
+    except (Exception, KeyboardInterrupt):
+      if file_path.exists():
+        file_path.unlink()
+      raise
+
+  return str(file_path)
